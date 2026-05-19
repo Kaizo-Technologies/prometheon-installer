@@ -124,7 +124,7 @@ services:
     image: kaizotechnologies/prometheon-1_backend:${PROMETHEON_VERSION:-latest}
     container_name: prometheon_backend
     restart: always
-    command: ["-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     env_file:
       - .env
     environment:
@@ -133,6 +133,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
       CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/2
+      TTS_RECORDINGS_DIR: /app/data/tts_recordings
     volumes:
       - sqlite_data:/app/data
       - ./backups:/app/backups
@@ -171,7 +172,7 @@ services:
     image: kaizotechnologies/prometheon-1_backend:${PROMETHEON_VERSION:-latest}
     container_name: prometheon_celery_worker
     restart: always
-    command: ["-m", "celery", "-A", "app.workers.celery_app",
+    command: ["python3", "-m", "celery", "-A", "app.workers.celery_app",
               "worker", "--loglevel=warning", "--concurrency=4"]
     env_file:
       - .env
@@ -212,7 +213,7 @@ services:
     image: kaizotechnologies/prometheon-1_backend:${PROMETHEON_VERSION:-latest}
     container_name: prometheon_celery_beat
     restart: always
-    command: ["-m", "celery", "-A", "app.workers.celery_app",
+    command: ["python3", "-m", "celery", "-A", "app.workers.celery_app",
               "beat", "--loglevel=warning", "--schedule", "/app/data/celerybeat-schedule"]
     env_file:
       - .env
