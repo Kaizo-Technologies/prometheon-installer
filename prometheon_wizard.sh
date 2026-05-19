@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
+#ver.1.1.0
 # ─────────────────────────────────────────────────────────────────────────────
 #  Prometheon Wizard  |  Install · Update · Uninstall
 #  Usage:  sudo bash prometheon_wizard.sh [install|update [version]|uninstall]
@@ -135,7 +135,7 @@ services:
       CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/2
       TTS_RECORDINGS_DIR: /app/data/tts_recordings
     volumes:
-      - sqlite_data:/app/data
+      - ./data:/app/data
       - ./backups:/app/backups
       - ./license:/app/license
     security_opt:
@@ -183,7 +183,7 @@ services:
       CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
       CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/2
     volumes:
-      - sqlite_data:/app/data
+      - ./data:/app/data
       - ./backups:/app/backups
       - ./license:/app/license
     security_opt:
@@ -224,7 +224,7 @@ services:
       CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/1
       CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/2
     volumes:
-      - sqlite_data:/app/data
+      - ./data:/app/data
       - ./backups:/app/backups
       - ./license:/app/license
     security_opt:
@@ -254,7 +254,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  sqlite_data:
 
 networks:
   prometheon_net:
@@ -495,7 +494,8 @@ do_install() {
 
     hr
     info "Creating installation directories..."
-    mkdir -p "${INSTALL_DIR}"/{backups,license,certs}
+    mkdir -p "${INSTALL_DIR}"/{data,backups,license,certs}
+    chown 1000:1000 "${INSTALL_DIR}/data" "${INSTALL_DIR}/backups" "${INSTALL_DIR}/license"
 
     _write_compose
     _write_nginx
@@ -678,6 +678,8 @@ do_update() {
 
     hr
     info "Refreshing configuration files..."
+    mkdir -p "${INSTALL_DIR}"/{data,backups,license}
+    chown 1000:1000 "${INSTALL_DIR}/data" "${INSTALL_DIR}/backups" "${INSTALL_DIR}/license"
     _write_compose
     _write_nginx
     _write_sql
