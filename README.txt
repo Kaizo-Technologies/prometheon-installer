@@ -12,6 +12,14 @@ Requirements:
   - Ports 80 and 443 available
   - Docker Hub pull token (provided by vendor)
 
+Quick start (on the server):
+  curl -fsSL https://raw.githubusercontent.com/Kaizo-Technologies/prometheon-installer/main/prometheon_wizard.sh -o prometheon_wizard.sh
+  sudo bash prometheon_wizard.sh install
+
+Defaults: Prometheon 1.6, Asterisk andrius/asterisk:22.11.0 (pinned).
+This file is a copy of installer/prometheon_wizard.sh in the prometheon-1 repo;
+update both together.
+
 Install:
   sudo bash prometheon_wizard.sh install
 
