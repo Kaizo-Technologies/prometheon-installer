@@ -84,6 +84,24 @@ _compose_up() {
     error "Could not start stack. Fix errors above, then: cd ${INSTALL_DIR} && sudo docker compose up -d"
 }
 
+# Host IP that Asterisk advertises to SIP peers. ASTERISK_BIND_IP in .env wins;
+# otherwise use the source address of the default route and save it to .env so
+# an admin can correct it on multi-homed hosts (then re-run update).
+_asterisk_bind_ip() {
+    local ip=""
+    if [[ -f "${INSTALL_DIR}/.env" ]]; then
+        ip=$(grep "^ASTERISK_BIND_IP=" "${INSTALL_DIR}/.env" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '[:space:]"')
+    fi
+    if [[ -z "$ip" ]]; then
+        ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<NF;i++) if ($i=="src") {print $(i+1); exit}}')
+        if [[ -n "$ip" && -f "${INSTALL_DIR}/.env" ]]; then
+            echo "ASTERISK_BIND_IP=${ip}" >> "${INSTALL_DIR}/.env"
+            log "Added ASTERISK_BIND_IP=${ip} to .env" >&2
+        fi
+    fi
+    echo "$ip"
+}
+
 # Write pjsip.conf snippets (always refresh trunk + includes).
 _write_pjsip_prometheon() {
     local AST_DIR="${INSTALL_DIR}/asterisk"
@@ -107,19 +125,33 @@ __AST_PJSIP_CUSTOM__
     fi
 
     if [[ "$OVERWRITE_CONFIGS" == true || ! -f "${AST_DIR}/pjsip_transports.conf" ]]; then
-        cat > "${AST_DIR}/pjsip_transports.conf" <<'__AST_PJSIP_TR__'
-[transport-udp]
-type=transport
-protocol=udp
-bind=0.0.0.0:5060
-allow_reload=yes
-
-[transport-tcp]
-type=transport
-protocol=tcp
-bind=0.0.0.0:5060
-allow_reload=yes
-__AST_PJSIP_TR__
+        # Asterisk runs in a Docker bridge network, so without these lines it
+        # advertises its container IP (172.x) in Via/Contact/SDP. A SIP gateway
+        # (Yeastar TG) then sends its INVITE replies to an unreachable address:
+        # the phone rings but Asterisk never sees "answered" and TTS is silent.
+        local BIND_IP NAT_LINES=""
+        BIND_IP="$(_asterisk_bind_ip)"
+        if [[ -n "$BIND_IP" ]]; then
+            NAT_LINES="external_signaling_address=${BIND_IP}
+external_media_address=${BIND_IP}
+local_net=172.16.0.0/12"
+            log "Asterisk will advertise host IP ${BIND_IP} (ASTERISK_BIND_IP in .env)"
+        else
+            warn "Could not detect the host IP; set ASTERISK_BIND_IP in ${INSTALL_DIR}/.env and re-run update, or TTS calls may be silent."
+        fi
+        local proto
+        : > "${AST_DIR}/pjsip_transports.conf"
+        for proto in udp tcp; do
+            {
+                echo "[transport-${proto}]"
+                echo "type=transport"
+                echo "protocol=${proto}"
+                echo "bind=0.0.0.0:5060"
+                [[ -n "$NAT_LINES" ]] && echo "$NAT_LINES"
+                echo "allow_reload=yes"
+                echo ""
+            } >> "${AST_DIR}/pjsip_transports.conf"
+        done
     fi
 
     if [[ "$OVERWRITE_CONFIGS" == true || ! -f "${AST_DIR}/pjsip_trunks.conf" ]]; then
